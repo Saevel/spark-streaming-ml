@@ -1,0 +1,23 @@
+group 'prv.saevel'
+
+version '1.0'
+
+apply plugin: "scala"
+
+def scalaVersionMajor = "2.12"
+
+def scalaVersionMinor = "8"
+
+repositories {
+    mavenCentral()
+    jcenter()
+}
+
+dependencies {
+    compile group: 'org.apache.spark', name: "spark-streaming_$scalaVersionMajor", version: '2.4.0'
+    compile group: 'org.apache.spark', name: "spark-mllib_$scalaVersionMajor", version: '2.4.0'
+    compile group: 'org.scala-lang', name: 'scala-library', version: "$scalaVersionMajor.$scalaVersionMinor"
+
+    testCompile group: 'org.scalatest', name: "scalatest_$scalaVersionMajor", version: '3.0.7'
+    testCompile group: 'org.scalacheck', name: "scalacheck_$scalaVersionMajor", version: '1.14.0'
+}
