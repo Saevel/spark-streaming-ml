@@ -18,6 +18,7 @@ dependencies {
     compile group: 'org.apache.spark', name: "spark-mllib_$scalaVersionMajor", version: '2.4.0'
     compile group: 'org.scala-lang', name: 'scala-library', version: "$scalaVersionMajor.$scalaVersionMinor"
 
+    testCompile group: 'junit', name: 'junit', version: '4.12'
     testCompile group: 'org.scalatest', name: "scalatest_$scalaVersionMajor", version: '3.0.7'
     testCompile group: 'org.scalacheck', name: "scalacheck_$scalaVersionMajor", version: '1.14.0'
 }
