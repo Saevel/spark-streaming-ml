@@ -75,10 +75,5 @@ class BatchTrainingTest extends WordSpec with StaticPropertyChecks with Matchers
         }
       }
     }
-
-    "provide reasonable accuracy" in forOneOf(allTypesOfClients(100)){ client =>
-      // TODO: Implement and check
-    }
   }
-
 }
