@@ -7,11 +7,12 @@ import org.scalatestplus.junit.JUnitRunner
 import prv.saevel.spark.streaming.ml.utils.{ScenariosGenerators, Spark, StaticPropertyChecks, StreamGenerators}
 import org.apache.spark.sql.functions._
 import org.apache.spark.sql.streaming.OutputMode
-import prv.saevel.spark.streaming.ml.PredictionPipeline
 import prv.saevel.spark.streaming.ml.model.Client
+import prv.saevel.spark.streaming.ml.pipeline.PredictionPipeline
 
 import scala.util.Random
 
+// KLUDGE: Don't yell at the author because this test
 @RunWith(classOf[JUnitRunner])
 class EmbeddingSuggestionsTest extends WordSpec with Matchers with StaticPropertyChecks with ScenariosGenerators
   with StreamGenerators with Spark {
@@ -27,10 +28,13 @@ class EmbeddingSuggestionsTest extends WordSpec with Matchers with StaticPropert
 
               import session.implicits._
 
+              // Generating two streams of client data, for training and testing.
               withStreamFrom(trainingClients) { trainingStream =>
                 withStreamFrom(testClients) { testStream =>
 
-                  // session.emptyDataset[Client].registerTempTable("predictions")
+                  // NOTE: This is another way it could be done. Also doesn't work ;)
+
+                  //session.emptyDataset[Client].registerTempTable("predictions")
 
                   /*
                   val query = trainingStream.writeStream.foreachBatch{(trainingMicrobatch: Dataset[Client], id: Long) =>
@@ -40,6 +44,7 @@ class EmbeddingSuggestionsTest extends WordSpec with Matchers with StaticPropert
                     }.start
                   }.start
                   */
+
 
                   val query = PredictionPipeline()
                     .fit(trainingStream)

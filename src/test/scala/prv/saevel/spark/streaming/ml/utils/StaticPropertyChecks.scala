@@ -3,6 +3,9 @@ package prv.saevel.spark.streaming.ml.utils
 import org.scalacheck.Gen
 import org.scalatest.Suite
 
+/**
+  * A util for testing
+  */
 trait StaticPropertyChecks { self: Suite =>
 
   protected val maxRetries = 10

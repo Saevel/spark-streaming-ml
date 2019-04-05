@@ -3,22 +3,12 @@ package prv.saevel.spark.streaming.ml.retraining
 import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
 import org.apache.spark.sql.streaming.{OutputMode, StreamingQuery}
 import org.apache.spark.sql.{Dataset, SparkSession}
-import prv.saevel.spark.streaming.ml.PredictionPipeline
 import prv.saevel.spark.streaming.ml.batch.training.{BatchTraining, StreamProcessing}
+import prv.saevel.spark.streaming.ml.pipeline.PredictionPipeline
 
-object RetrainingMain extends App {
+object Retraining {
 
   case class RetrainingConfig(threshold: Double, modelPath: String, outputTable: String, accuracyWindow: Int, evaluationDelayMs: Long)
-
-  // Run with -Dspark.master = <master>
-  implicit val session = SparkSession.builder().appName("Retraining").getOrCreate
-
-  import org.apache.spark.sql.functions._
-  import session.implicits._
-
-  // val config = new RetrainingConfig(0.25, "build/model", "build/output")
-
-  // run(config)
 
   private[retraining] def run(trainingDataProducer: () => Dataset[_],
                               actualData: Dataset[_],
@@ -54,11 +44,4 @@ object RetrainingMain extends App {
       query
     }
   }
-
-  private[retraining] def accuracyStream(labelledStream: Dataset[_], threshold: Double): Dataset[_] =
-    labelledStream
-      .select($"time", abs($"preference" - $"preference_prediction") as "error")
-      .groupBy(window($"time", "1 minute"))
-      .sum("error")
-      .filter($"error" >= threshold)
 }

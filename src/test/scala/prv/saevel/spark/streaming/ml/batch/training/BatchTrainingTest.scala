@@ -1,14 +1,19 @@
 package prv.saevel.spark.streaming.ml.batch.training
 
+import java.sql.Timestamp
+import java.time.LocalDateTime
+
 import org.apache.spark.ml.PipelineModel
-import org.apache.spark.sql.SparkSession
+import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
+import org.apache.spark.sql.{Column, SparkSession}
 import org.junit.runner.RunWith
 import org.scalatest.{Matchers, WordSpec}
 import org.scalatestplus.junit.JUnitRunner
-import prv.saevel.spark.streaming.ml.PredictionPipeline
 import prv.saevel.spark.streaming.ml.utils._
+import org.apache.spark.sql.functions.{isnull, not => !!}
+import prv.saevel.spark.streaming.ml.pipeline.PredictionPipeline
 
-import org.apache.spark.sql.functions.{not => !!, isnull}
+import scala.concurrent.duration.Duration
 
 @RunWith(classOf[JUnitRunner])
 class BatchTrainingTest extends WordSpec with StaticPropertyChecks with Matchers with ScenariosGenerators with FileUtils
@@ -25,6 +30,7 @@ class BatchTrainingTest extends WordSpec with StaticPropertyChecks with Matchers
           val trainingDataset = clients.toDS()
           BatchTraining(PredictionPipeline(), trainingDataset, modelPath)
 
+          // Loading the model to check if it was properly saved.
           PipelineModel.read.load(modelPath) should not be(null)
         }
       }
@@ -80,11 +86,19 @@ class BatchTrainingTest extends WordSpec with StaticPropertyChecks with Matchers
                 .select($"count".as[Long])
                 .first
 
-              // Check if nearly all (query cancel is not transactional, so some records can slip) stream entries were labelled
+              // Check if nearly all (query cancel is not transactional, so some records can slip) stream entries were labelled, duplicates included
               predictionCount should be >=(totalCount - 5)
-              predictionCount should not be >(totalCount)
+              predictionCount should not be >(totalCount + 5)
 
-              val accuracy = session.sql("SELECT * FROM predictions")
+              val finalAccuracy = new MulticlassClassificationEvaluator()
+                .setLabelCol("preference")
+                .setPredictionCol("preference_prediction")
+                .evaluate(session.read.table("predictions"))
+
+              // NOTE: That value is pretty low, but it's lower that it ever gets and the patterns in the data are only
+              // statistically true. You can do much better if you change my "forOneOf" method to standard ScalaCheck
+              // "forAll" and averaging accuracy over many runs, but the tests will run way longer.
+              finalAccuracy should be >= (0.35)
             }
           }
         }

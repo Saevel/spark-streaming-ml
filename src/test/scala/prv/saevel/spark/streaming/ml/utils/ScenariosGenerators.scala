@@ -3,6 +3,9 @@ package prv.saevel.spark.streaming.ml.utils
 import org.scalacheck.Gen
 import prv.saevel.spark.streaming.ml.model.{Client, EducationLevel, FinancialProducts, Sex}
 
+/**
+  * Generators for various scenarios related to the churn prevention for massive online retail.
+  */
 trait ScenariosGenerators {
 
   private val sexes = Gen.oneOf(Seq(Sex.Male, Sex.Female))

@@ -1,7 +1,7 @@
-package prv.saevel.spark.streaming.ml
+package prv.saevel.spark.streaming.ml.pipeline
 
-import org.apache.spark.ml.{Pipeline, PipelineModel}
-import org.apache.spark.ml.classification.{DecisionTreeClassifier, RandomForestClassifier}
+import org.apache.spark.ml.Pipeline
+import org.apache.spark.ml.classification.RandomForestClassifier
 import org.apache.spark.ml.feature.{StringIndexer, VectorAssembler}
 
 object PredictionPipeline {
