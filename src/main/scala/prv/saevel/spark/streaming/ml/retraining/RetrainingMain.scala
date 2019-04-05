@@ -1,16 +1,14 @@
 package prv.saevel.spark.streaming.ml.retraining
 
-import org.apache.spark.ml.PipelineModel
-import org.apache.spark.ml.classification.RandomForestClassificationModel
-import org.apache.spark.sql.streaming.OutputMode
+import org.apache.spark.ml.evaluation.MulticlassClassificationEvaluator
+import org.apache.spark.sql.streaming.{OutputMode, StreamingQuery}
 import org.apache.spark.sql.{Dataset, SparkSession}
 import prv.saevel.spark.streaming.ml.PredictionPipeline
-import prv.saevel.spark.streaming.ml.batch.training.BatchTraining
-import prv.saevel.spark.streaming.ml.model.Client
+import prv.saevel.spark.streaming.ml.batch.training.{BatchTraining, StreamProcessing}
 
 object RetrainingMain extends App {
 
-  case class RetrainingConfig(threshold: Double, inputDataPath: String, labelledDataPath: String, modelPath: String, outputPath: String)
+  case class RetrainingConfig(threshold: Double, modelPath: String, outputTable: String, accuracyWindow: Int, evaluationDelayMs: Long)
 
   // Run with -Dspark.master = <master>
   implicit val session = SparkSession.builder().appName("Retraining").getOrCreate
@@ -18,52 +16,44 @@ object RetrainingMain extends App {
   import org.apache.spark.sql.functions._
   import session.implicits._
 
-  val config = new RetrainingConfig(0.25, "build/input", "build/labelled", "build/model", "build/output")
+  // val config = new RetrainingConfig(0.25, "build/model", "build/output")
 
-  run(config)
+  // run(config)
 
-  private[retraining] def run(config: RetrainingConfig)(implicit session: SparkSession): Unit = {
+  private[retraining] def run(trainingDataProducer: () => Dataset[_],
+                              actualData: Dataset[_],
+                              config: RetrainingConfig)(implicit session: SparkSession): StreamingQuery = {
 
-    val inputStream = readInput(config.inputDataPath)
 
-    buildModel(config.labelledDataPath, config.modelPath)
+    BatchTraining(PredictionPipeline(), trainingDataProducer(), config.modelPath)
 
-    val model = readModel(config.modelPath)
-
-    val results = model
-      .transform(inputStream)
-      .checkpoint(true)
-      .cache
-
-    val query = results
+    val query = StreamProcessing(actualData)(config.modelPath)
       .writeStream
       .outputMode(OutputMode.Append())
-      .format("json")
-      .start(config.outputPath)
+      .format("memory")
+      .queryName(config.outputTable)
+      .start
 
-    accuracyStream(results, config.threshold)
-      .writeStream
-      .foreachBatch{ (x: Dataset[_], y: Long) =>
-        buildModel(config.labelledDataPath, config.modelPath)
-        query.stop
-        run(config)
-      }.start
+    Thread.sleep(config.evaluationDelayMs)
+
+    val baseErrors = session
+      .read
+      .table(config.outputTable)
+      .limit(config.accuracyWindow)
+      .cache()
+
+    val accuracy = new MulticlassClassificationEvaluator()
+      .setLabelCol("preference")
+      .setPredictionCol("preference_prediction")
+      .evaluate(baseErrors)
+
+    if(accuracy < config.threshold){
+      query.stop
+      run(trainingDataProducer, actualData, config)
+    } else {
+      query
+    }
   }
-
-  private[retraining] def readInput(streamingDataPath: String)(implicit session: SparkSession): Dataset[_] =
-    session
-      .readStream
-      .format("json")
-      .load(streamingDataPath)
-      .as[Client]
-      .cache
-
-  // TODO: MODIFY
-  private[retraining] def buildModel(labelledDataPath: String, modelPath: String)(implicit session: SparkSession): Unit =
-    BatchTraining(PredictionPipeline(), session.read.json(labelledDataPath), modelPath)
-
-  private[retraining] def readModel(modelUrl: String): PipelineModel =
-    PipelineModel.load(modelUrl)
 
   private[retraining] def accuracyStream(labelledStream: Dataset[_], threshold: Double): Dataset[_] =
     labelledStream

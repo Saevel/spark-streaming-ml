@@ -15,12 +15,14 @@ trait StreamGenerators {
       .readStream
       .format("rate")
       .load
-      .map(_ => randomElement(elements))
+      .map(_ => elements(Random.nextInt(elements.size)))
     )
   }
 
+  /*
   protected def randomElement[X](elements: Seq[X]): X = {
     val i = Random.nextInt(elements.length)
     elements(i)
   }
+  */
 }

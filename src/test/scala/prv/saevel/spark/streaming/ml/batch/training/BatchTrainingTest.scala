@@ -8,7 +8,7 @@ import org.scalatestplus.junit.JUnitRunner
 import prv.saevel.spark.streaming.ml.PredictionPipeline
 import prv.saevel.spark.streaming.ml.utils._
 
-import scala.util.Random
+import org.apache.spark.sql.functions.{not => !!, isnull}
 
 @RunWith(classOf[JUnitRunner])
 class BatchTrainingTest extends WordSpec with StaticPropertyChecks with Matchers with ScenariosGenerators with FileUtils
@@ -39,37 +39,52 @@ class BatchTrainingTest extends WordSpec with StaticPropertyChecks with Matchers
           withSparkSession("BatchTrainingTest") { implicit session: SparkSession =>
 
             import session.implicits._
-            import org.apache.spark.sql.functions._
 
             withStreamFrom(testData){ testStream =>
 
               val trainingDataset = trainingData.toDS()
+
               BatchTraining(PredictionPipeline(), trainingDataset, modelPath)
 
-              val testStream = session
-                .readStream
-                .format("rate")
-                .load
-                .map{ _ => testData(Random.nextInt(testData.size))}
+              val predictionStream =  StreamProcessing(testStream)(modelPath)
 
-              val predictionStream = PipelineModel.load(modelPath).transform(testStream)
+              // Stream all records exiting the pipeline to an in-memory table
+              val countAllQuery = predictionStream
+                .writeStream
+                .format("memory")
+                .queryName("all")
+                .start
 
+              //Stream records with "preference_prediction" present to an in-memory tabld
               val predictionQuery = predictionStream
-                .where(org.apache.spark.sql.functions.not(isnull($"preference_prediction")))
+                .where(!!(isnull($"preference_prediction")))
                 .writeStream
                 .format("memory")
                 .queryName("predictions")
                 .start
 
+              // Wait for the stream to run a while
               Thread.sleep(3000 * 10)
 
+              // Kill the streams
+              countAllQuery.stop()
               predictionQuery.stop()
 
+              // Count the contents of the in memory table
               val predictionCount = session.sql("SELECT COUNT(*) AS count FROM predictions")
                 .select($"count".as[Long])
                 .first
 
-              predictionCount should be > 0L
+              // Count all records that existed the ML Pipeline
+              val totalCount = session.sql("SELECT COUNT(*) AS count FROM all")
+                .select($"count".as[Long])
+                .first
+
+              // Check if nearly all (query cancel is not transactional, so some records can slip) stream entries were labelled
+              predictionCount should be >=(totalCount - 5)
+              predictionCount should not be >(totalCount)
+
+              val accuracy = session.sql("SELECT * FROM predictions")
             }
           }
         }
